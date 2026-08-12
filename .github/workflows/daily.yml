@@ -1,0 +1,50 @@
+name: 🚀 Daily Breakout Scan
+
+on:
+  schedule:
+    # 매일 오전 6시 KST (= 21:00 UTC 전날) 예약.
+    # GitHub Actions 스케줄러는 정시 보장이 없어 통상 1~2시간 지연되며,
+    # ai2 크롤(06시경 완료) 이후에 도는 것이 자연스럽다.
+    - cron: '0 21 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 📦 패키지 설치
+        run: |
+          pip install --upgrade pip
+          pip install pandas numpy requests beautifulsoup4 lxml
+
+      - name: 🔎 돌파 스캔
+        run: python run_daily.py
+
+      - name: 💾 신호 커밋 & 푸시
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add signals/
+          git diff --staged --quiet && echo "변경 없음" && exit 0
+          git commit -m "🚀 Breakout scan: $(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M KST')"
+          git push
+
+      - name: 📨 카카오톡 알림
+        continue-on-error: true
+        env:
+          KAKAO_REST_KEY: ${{ secrets.KAKAO_REST_KEY }}
+          KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+          KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
+          APP_URL: ${{ secrets.APP_URL }}
+        run: python kakao_send.py
