@@ -25,17 +25,31 @@ STAGE_META = {
 
 st.markdown("""
 <style>
-.bk-card{background:#1E293B;border:1px solid #334155;border-left:4px solid var(--c,#34D399);
-         border-radius:10px;padding:12px 16px;margin-bottom:10px;}
-.bk-name{font-size:1.1rem;font-weight:800;color:#F1F5F9;}
-.bk-code{font-family:monospace;color:#94A3B8;font-size:.82rem;margin-left:6px;}
-.bk-chip{display:inline-block;background:rgba(52,211,153,.10);border:1px solid rgba(52,211,153,.3);
-         border-radius:6px;color:#CBD5E1;font-size:.74rem;padding:2px 8px;margin:3px 4px 0 0;}
-.bk-num{font-family:'JetBrains Mono',monospace;font-weight:800;}
-.bk-nv{float:right;font-size:.72rem;font-weight:700;text-decoration:none;
-       color:#03C75A;border:1px solid rgba(3,199,90,.45);border-radius:6px;
-       padding:2px 9px;background:rgba(3,199,90,.08);}
-.bk-nv:hover{background:rgba(3,199,90,.20);}
+/* 반응형 그리드: 넓은 화면 2~3열, 폰 1열 — 빈 공간 최소화 */
+.bk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(370px,1fr));
+         gap:9px;margin-top:6px;}
+.bk-card{background:linear-gradient(180deg,#1E293B 0%,#1A2434 100%);
+         border:1px solid #334155;border-left:3px solid var(--c,#34D399);
+         border-radius:9px;padding:9px 12px;}
+.bk-hd{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;}
+.bk-rk{font-family:'JetBrains Mono',monospace;font-size:.76rem;font-weight:800;
+       color:var(--c,#34D399);min-width:20px;}
+a.bk-name{font-size:1.02rem;font-weight:800;color:#F1F5F9;text-decoration:none;
+          border-bottom:1px dashed rgba(3,199,90,.55);}
+a.bk-name:hover{color:#03C75A;border-bottom-color:#03C75A;}
+.bk-meta{font-family:monospace;color:#8394AC;font-size:.7rem;}
+.bk-score{margin-left:auto;font-family:'JetBrains Mono',monospace;font-weight:800;
+          font-size:.82rem;color:#0F172A;background:var(--c,#34D399);
+          border-radius:5px;padding:1px 7px;}
+/* 지표 수평 배열 */
+.bk-mt{display:flex;flex-wrap:wrap;gap:0 12px;margin-top:5px;
+       font-family:'JetBrains Mono',monospace;font-size:.78rem;}
+.bk-mt b{font-weight:800;}
+.bk-mt s{text-decoration:none;color:#64748B;font-size:.66rem;margin-right:2px;}
+.bk-chips{margin-top:5px;display:flex;flex-wrap:wrap;gap:3px;}
+.bk-chip{background:rgba(148,163,184,.10);border:1px solid rgba(148,163,184,.22);
+         border-radius:5px;color:#B6C2D2;font-size:.68rem;padding:1px 6px;}
+.bk-chip.hot{background:rgba(52,211,153,.13);border-color:rgba(52,211,153,.38);color:#6EE7B7;}
 </style>""", unsafe_allow_html=True)
 
 
@@ -82,21 +96,46 @@ def spark(code):
     st.line_chart(d.set_index('date')['close'], height=140)
 
 
-def render_card(s, rank=None):
+def card_html(s, rank=None) -> str:
+    """컴팩트 카드 1개의 HTML. 종목명 자체가 네이버 증권 링크."""
     c = STAGE_META[s['stage']][1]
-    chips = ''.join(f'<span class="bk-chip">{r}</span>' for r in s.get('reasons', []))
-    rev = f" · 컨센 {s['rev_score']:+.1f}%" if s.get('rev_score') is not None else ''
-    st.markdown(
+    up = lambda v: '#34D399' if (pd.notna(v) and v >= 0) else '#F87171'
+
+    def m(label, val, color='#E2E8F0'):
+        return f'<span><s>{label}</s><b style="color:{color};">{val}</b></span>'
+
+    mets = [
+        m('', f'{s["close"]:,.0f}'),
+        m('D', f'{s["ret1"]:+.1f}%', up(s['ret1'])),
+        m('5일', f'{s["ret5"]:+.1f}%', up(s['ret5'])),
+        m('20일', f'{s["ret20"]:+.1f}%', up(s['ret20'])),
+        m('거래량', f'{s["vol_ratio"]:.1f}x',
+          '#FBBF24' if s['vol_ratio'] >= 3 else '#E2E8F0'),
+        m('RSI', f'{s["rsi"]:.0f}'),
+    ]
+    if s.get('rev_score') is not None:
+        mets.append(m('컨센', f'{s["rev_score"]:+.1f}%', up(s['rev_score'])))
+
+    chips = ''.join(
+        f'<span class="bk-chip{" hot" if ("신고가" in r or "폭증" in r) else ""}">{r}</span>'
+        for r in s.get('reasons', []))
+    rk = f'<span class="bk-rk">{rank}</span>' if rank else ''
+    return (
         f'<div class="bk-card" style="--c:{c};">'
-        f'<a class="bk-nv" href="{naver_url(s["code"])}" target="_blank">📈 네이버</a>'
-        f'<span class="bk-name">{"#"+str(rank)+" " if rank else ""}{s["name"]}</span>'
-        f'<span class="bk-code">{s["code"]} · {s.get("market","")} · {s.get("sector","")}</span>'
-        f'<div style="margin-top:4px;color:#CBD5E1;" class="bk-num">'
-        f'{s["close"]:,.0f}원 '
-        f'<span style="color:{"#34D399" if s["ret1"]>=0 else "#F87171"}">{s["ret1"]:+.1f}%</span>'
-        f' · 거래량 {s["vol_ratio"]:.1f}x · 5일 {s["ret5"]:+.1f}%'
-        f' · <span style="color:#62EFFF;">점수 {s["score"]}</span>{rev}</div>'
-        f'<div style="margin-top:6px;">{chips}</div></div>', unsafe_allow_html=True)
+        f'<div class="bk-hd">{rk}'
+        f'<a class="bk-name" href="{naver_url(s["code"])}" target="_blank" '
+        f'title="네이버 증권에서 열기">{s["name"]}</a>'
+        f'<span class="bk-meta">{s["code"]}·{s.get("market","")}'
+        f'{"·"+s["sector"] if s.get("sector") else ""}</span>'
+        f'<span class="bk-score">{s["score"]:.0f}</span></div>'
+        f'<div class="bk-mt">{"".join(mets)}</div>'
+        f'<div class="bk-chips">{chips}</div></div>')
+
+
+def render_grid(items):
+    """카드들을 반응형 그리드로 한 번에 렌더."""
+    html = ''.join(card_html(s, i) for i, (_, s) in enumerate(items.iterrows(), 1))
+    st.markdown(f'<div class="bk-grid">{html}</div>', unsafe_allow_html=True)
 
 
 sig_all = load_all_signals()
@@ -127,10 +166,14 @@ with t1:
         st.info("오늘은 돌파 신호가 없습니다. (조용한 장세이거나 조건 미달)")
     else:
         show_chart = st.checkbox("미니 차트 표시 (느려질 수 있음)", value=False)
-        for i, (_, s) in enumerate(d2.head(20).iterrows(), 1):
-            render_card(s, i)
-            if show_chart:
+        top = d2.head(24)
+        if show_chart:
+            for i, (_, s) in enumerate(top.iterrows(), 1):
+                st.markdown(card_html(s, i), unsafe_allow_html=True)
                 spark(s['code'])
+        else:
+            render_grid(top)
+        st.caption("종목명을 누르면 네이버 증권으로 이동합니다.")
     with st.expander(f"📈 진행 중 {int((df['stage']==3).sum())}종목 · 🔥 과열 {int((df['stage']==4).sum())}종목"):
         for stg in (3, 4):
             sub = df[df['stage'] == stg].sort_values('score', ascending=False).head(10)
