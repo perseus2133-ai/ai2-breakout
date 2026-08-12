@@ -32,7 +32,27 @@ st.markdown("""
 .bk-chip{display:inline-block;background:rgba(52,211,153,.10);border:1px solid rgba(52,211,153,.3);
          border-radius:6px;color:#CBD5E1;font-size:.74rem;padding:2px 8px;margin:3px 4px 0 0;}
 .bk-num{font-family:'JetBrains Mono',monospace;font-weight:800;}
+.bk-nv{float:right;font-size:.72rem;font-weight:700;text-decoration:none;
+       color:#03C75A;border:1px solid rgba(3,199,90,.45);border-radius:6px;
+       padding:2px 9px;background:rgba(3,199,90,.08);}
+.bk-nv:hover{background:rgba(3,199,90,.20);}
 </style>""", unsafe_allow_html=True)
+
+
+def naver_url(code: str) -> str:
+    """네이버 증권 종목 페이지 (모바일·PC 모두 정상 표시)."""
+    return f'https://m.stock.naver.com/domestic/stock/{code}/total'
+
+
+def add_link_col(df: pd.DataFrame) -> pd.DataFrame:
+    """표에 네이버 링크 컬럼 추가."""
+    out = df.copy()
+    out['네이버'] = out['code'].map(naver_url) if 'code' in out.columns \
+        else out['코드'].map(naver_url)
+    return out
+
+
+LINK_CFG = st.column_config.LinkColumn('네이버', display_text='📈 보기', width='small')
 
 
 @st.cache_data(ttl=600)
@@ -68,6 +88,7 @@ def render_card(s, rank=None):
     rev = f" · 컨센 {s['rev_score']:+.1f}%" if s.get('rev_score') is not None else ''
     st.markdown(
         f'<div class="bk-card" style="--c:{c};">'
+        f'<a class="bk-nv" href="{naver_url(s["code"])}" target="_blank">📈 네이버</a>'
         f'<span class="bk-name">{"#"+str(rank)+" " if rank else ""}{s["name"]}</span>'
         f'<span class="bk-code">{s["code"]} · {s.get("market","")} · {s.get("sector","")}</span>'
         f'<div style="margin-top:4px;color:#CBD5E1;" class="bk-num">'
@@ -115,9 +136,10 @@ with t1:
             sub = df[df['stage'] == stg].sort_values('score', ascending=False).head(10)
             if not sub.empty:
                 st.markdown(f"**{STAGE_META[stg][0]}** — {STAGE_META[stg][2]}")
-                st.dataframe(sub[['name', 'code', 'close', 'ret1', 'ret5', 'ret20',
-                                  'vol_ratio', 'rsi', 'score']],
-                             hide_index=True, use_container_width=True)
+                st.dataframe(add_link_col(sub)[['name', 'code', '네이버', 'close', 'ret1',
+                                                'ret5', 'ret20', 'vol_ratio', 'rsi', 'score']],
+                             hide_index=True, use_container_width=True,
+                             column_config={'네이버': LINK_CFG})
 
 with t2:
     d1 = df[df['stage'] == 1].sort_values('score', ascending=False)
@@ -127,10 +149,11 @@ with t2:
         st.info("스퀴즈 조건을 만족하는 종목이 없습니다.")
     else:
         st.dataframe(
-            d1[['name', 'code', 'market', 'sector', 'close', 'ret20',
-                'squeeze_pctile', 'rsi', 'rev_score', 'score']].head(50),
+            add_link_col(d1.head(50))[['name', 'code', '네이버', 'market', 'sector', 'close',
+                                       'ret20', 'squeeze_pctile', 'rsi', 'rev_score', 'score']],
             hide_index=True, use_container_width=True, height=520,
             column_config={
+                '네이버': LINK_CFG,
                 'squeeze_pctile': st.column_config.NumberColumn('수축도', format='%.0f',
                                                                 help='낮을수록 강하게 수축'),
                 'rev_score': st.column_config.NumberColumn('컨센%', format='%+.1f'),
@@ -144,11 +167,13 @@ with t3:
         for s in sig_all[d]['signals']:
             if s['stage'] == 2:
                 rows.append({'신호일': d, '종목명': s['name'], '코드': s['code'],
+                             '네이버': naver_url(s['code']),
                              '시장': s.get('market', ''), '신호가': s['close'],
                              '거래량배수': s['vol_ratio'], '점수': s['score'],
                              '근거': ' / '.join(s.get('reasons', [])[:3])})
     if rows:
-        st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True, height=520)
+        st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True,
+                     height=520, column_config={'네이버': LINK_CFG})
     else:
         st.info("아직 Stage2 신호 이력이 없습니다.")
 
@@ -174,7 +199,8 @@ with t4:
                 pdf = uniq[code]
                 cur = float(pdf['close'].iloc[-1]) if pdf is not None and len(pdf) else np.nan
                 ret = (cur / px - 1) * 100 if pd.notna(cur) else np.nan
-                recs.append({'신호일': d, '종목명': name, '신호가': px, '현재가': cur,
+                recs.append({'신호일': d, '종목명': name, '네이버': naver_url(code),
+                             '신호가': px, '현재가': cur,
                              '수익률%': round(ret, 1) if pd.notna(ret) else None, '점수': sc})
                 bar.progress((i + 1) / len(rows))
             bar.empty()
@@ -184,4 +210,8 @@ with t4:
             m1.metric("신호 수", f"{len(bt)}건")
             m2.metric("평균 수익률", f"{r.mean():+.1f}%" if len(r) else "-")
             m3.metric("승률", f"{(r>0).mean()*100:.0f}%" if len(r) else "-")
-            st.dataframe(bt, hide_index=True, use_container_width=True, height=420)
+            st.dataframe(bt, hide_index=True, use_container_width=True, height=420,
+                         column_config={
+                             '네이버': LINK_CFG,
+                             '수익률%': st.column_config.NumberColumn('수익률', format='%+.1f%%'),
+                         })
