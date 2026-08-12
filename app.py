@@ -53,9 +53,35 @@ a.bk-name:hover{color:#03C75A;border-bottom-color:#03C75A;}
 </style>""", unsafe_allow_html=True)
 
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def _is_mobile_ua(ua: str) -> bool:
+    """폰만 '모바일'로 본다. 태블릿은 화면이 커서 일반(데스크톱) 화면이 더 낫다."""
+    ua = (ua or '').lower()
+    if 'ipad' in ua or 'tablet' in ua:
+        return False
+    if any(k in ua for k in ('iphone', 'ipod', 'windows phone', 'iemobile')):
+        return True
+    # 안드로이드 폰은 UA에 'mobile' 토큰이 있고, 태블릿은 없다
+    return 'android' in ua and 'mobile' in ua
+
+
+def is_mobile() -> bool:
+    """접속 기기 판별 (User-Agent). 판별 실패 시 PC로 간주."""
+    try:
+        return _is_mobile_ua(st.context.headers.get('User-Agent', ''))
+    except Exception:
+        return False
+
+
+IS_MOBILE = is_mobile()
+
+
 def naver_url(code: str) -> str:
-    """네이버 증권 종목 페이지 (모바일·PC 모두 정상 표시)."""
-    return f'https://m.stock.naver.com/domestic/stock/{code}/total'
+    """네이버 증권 종목 페이지.
+    PC → 일반(데스크톱) 화면, 모바일 → 모바일 화면."""
+    if IS_MOBILE:
+        return f'https://m.stock.naver.com/domestic/stock/{code}/total'
+    return f'https://finance.naver.com/item/main.naver?code={code}'
 
 
 def add_link_col(df: pd.DataFrame) -> pd.DataFrame:
