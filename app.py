@@ -26,30 +26,51 @@ STAGE_META = {
 st.markdown("""
 <style>
 /* 반응형 그리드: 넓은 화면 2~3열, 폰 1열 — 빈 공간 최소화 */
-.bk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(370px,1fr));
-         gap:9px;margin-top:6px;}
-.bk-card{background:linear-gradient(180deg,#1E293B 0%,#1A2434 100%);
-         border:1px solid #334155;border-left:3px solid var(--c,#34D399);
-         border-radius:9px;padding:9px 12px;}
-.bk-hd{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;}
-.bk-rk{font-family:'JetBrains Mono',monospace;font-size:.76rem;font-weight:800;
-       color:var(--c,#34D399);min-width:20px;}
-a.bk-name{font-size:1.02rem;font-weight:800;color:#F1F5F9;text-decoration:none;
-          border-bottom:1px dashed rgba(3,199,90,.55);}
-a.bk-name:hover{color:#03C75A;border-bottom-color:#03C75A;}
-.bk-meta{font-family:monospace;color:#8394AC;font-size:.7rem;}
+.bk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(390px,1fr));
+         gap:12px;margin-top:8px;}
+
+/* 밝은 카드 + 3D 입체감 */
+.bk-card{position:relative;background:linear-gradient(160deg,#FFFFFF 0%,#F1F5F9 100%);
+         border:1px solid #D7DEE8;border-top:3px solid var(--c,#22A06B);
+         border-radius:12px;padding:11px 14px 10px;
+         box-shadow:0 1px 2px rgba(16,24,40,.06),0 4px 10px rgba(16,24,40,.08);
+         transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease;}
+.bk-card:hover{transform:translateY(-4px) scale(1.012);
+               box-shadow:0 10px 22px rgba(16,24,40,.16),0 3px 6px rgba(16,24,40,.10);
+               border-color:var(--c,#22A06B);}
+
+.bk-hd{display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
+.bk-rk{display:inline-flex;align-items:center;justify-content:center;
+       width:21px;height:21px;border-radius:6px;font-family:'JetBrains Mono',monospace;
+       font-size:.72rem;font-weight:800;color:#fff;background:var(--c,#22A06B);
+       box-shadow:0 2px 4px rgba(16,24,40,.18);}
+a.bk-name{font-size:1.06rem;font-weight:800;color:#0F172A;text-decoration:none;
+          transition:color .15s ease;}
+a.bk-name:hover{color:#1D6FE0;text-decoration:underline;}
+a.bk-name::after{content:'↗';font-size:.66rem;color:#94A3B8;margin-left:3px;
+                 vertical-align:super;}
+.bk-meta{font-family:monospace;color:#7A879B;font-size:.7rem;}
 .bk-score{margin-left:auto;font-family:'JetBrains Mono',monospace;font-weight:800;
-          font-size:.82rem;color:#0F172A;background:var(--c,#34D399);
-          border-radius:5px;padding:1px 7px;}
+          font-size:.8rem;color:#fff;background:var(--c,#22A06B);
+          border-radius:7px;padding:2px 9px;box-shadow:0 2px 5px rgba(16,24,40,.20);}
+
+/* 기업개요 */
+.bk-desc{margin-top:6px;font-size:.76rem;line-height:1.4;color:#4A5768;
+         background:#EEF2F7;border-left:2px solid #C6D2E1;border-radius:0 6px 6px 0;
+         padding:5px 8px;}
+
 /* 지표 수평 배열 */
-.bk-mt{display:flex;flex-wrap:wrap;gap:0 12px;margin-top:5px;
-       font-family:'JetBrains Mono',monospace;font-size:.78rem;}
+.bk-mt{display:flex;flex-wrap:wrap;gap:0 13px;margin-top:7px;
+       font-family:'JetBrains Mono',monospace;font-size:.79rem;}
 .bk-mt b{font-weight:800;}
-.bk-mt s{text-decoration:none;color:#64748B;font-size:.66rem;margin-right:2px;}
-.bk-chips{margin-top:5px;display:flex;flex-wrap:wrap;gap:3px;}
-.bk-chip{background:rgba(148,163,184,.10);border:1px solid rgba(148,163,184,.22);
-         border-radius:5px;color:#B6C2D2;font-size:.68rem;padding:1px 6px;}
-.bk-chip.hot{background:rgba(52,211,153,.13);border-color:rgba(52,211,153,.38);color:#6EE7B7;}
+.bk-mt s{text-decoration:none;color:#8A95A6;font-size:.65rem;margin-right:3px;}
+
+.bk-chips{margin-top:7px;display:flex;flex-wrap:wrap;gap:4px;}
+.bk-chip{background:#EDF1F6;border:1px solid #D5DDE8;border-radius:6px;
+         color:#475569;font-size:.69rem;font-weight:600;padding:2px 7px;}
+.bk-chip.hot{background:linear-gradient(180deg,#E7F8F0,#D6F2E6);
+             border-color:#8FD9BC;color:#0E7A55;
+             box-shadow:0 1px 2px rgba(14,122,85,.12);}
 </style>""", unsafe_allow_html=True)
 
 
@@ -96,6 +117,17 @@ LINK_CFG = st.column_config.LinkColumn('네이버', display_text='📈 보기', 
 
 
 @st.cache_data(ttl=600)
+def load_profiles_cached() -> dict:
+    try:
+        return json.load(open(os.path.join(HERE, 'profiles.json'), encoding='utf-8'))
+    except Exception:
+        return {}
+
+
+PROFILES = load_profiles_cached()
+
+
+@st.cache_data(ttl=600)
 def load_all_signals():
     out = {}
     for p in sorted(glob.glob(os.path.join(SIG_DIR, '*.json'))):
@@ -125,9 +157,10 @@ def spark(code):
 def card_html(s, rank=None) -> str:
     """컴팩트 카드 1개의 HTML. 종목명 자체가 네이버 증권 링크."""
     c = STAGE_META[s['stage']][1]
-    up = lambda v: '#34D399' if (pd.notna(v) and v >= 0) else '#F87171'
+    # 밝은 배경용 대비 색 (상승 레드 / 하락 블루 — 국내 증권사 관행)
+    up = lambda v: '#D42C2C' if (pd.notna(v) and v >= 0) else '#1D6FE0'
 
-    def m(label, val, color='#E2E8F0'):
+    def m(label, val, color='#1F2937'):
         return f'<span><s>{label}</s><b style="color:{color};">{val}</b></span>'
 
     mets = [
@@ -136,7 +169,7 @@ def card_html(s, rank=None) -> str:
         m('5일', f'{s["ret5"]:+.1f}%', up(s['ret5'])),
         m('20일', f'{s["ret20"]:+.1f}%', up(s['ret20'])),
         m('거래량', f'{s["vol_ratio"]:.1f}x',
-          '#FBBF24' if s['vol_ratio'] >= 3 else '#E2E8F0'),
+          '#B45309' if s['vol_ratio'] >= 3 else '#1F2937'),
         m('RSI', f'{s["rsi"]:.0f}'),
     ]
     if s.get('rev_score') is not None:
@@ -146,6 +179,9 @@ def card_html(s, rank=None) -> str:
         f'<span class="bk-chip{" hot" if ("신고가" in r or "폭증" in r) else ""}">{r}</span>'
         for r in s.get('reasons', []))
     rk = f'<span class="bk-rk">{rank}</span>' if rank else ''
+    # 신호 파일에 profile 이 없던 시기(구버전)에는 profiles.json 캐시로 보완
+    prof = (s.get('profile') or PROFILES.get(s['code'], {}).get('summary', '') or '').strip()
+    desc = f'<div class="bk-desc">{prof}</div>' if prof else ''
     return (
         f'<div class="bk-card" style="--c:{c};">'
         f'<div class="bk-hd">{rk}'
@@ -154,6 +190,7 @@ def card_html(s, rank=None) -> str:
         f'<span class="bk-meta">{s["code"]}·{s.get("market","")}'
         f'{"·"+s["sector"] if s.get("sector") else ""}</span>'
         f'<span class="bk-score">{s["score"]:.0f}</span></div>'
+        f'{desc}'
         f'<div class="bk-mt">{"".join(mets)}</div>'
         f'<div class="bk-chips">{chips}</div></div>')
 

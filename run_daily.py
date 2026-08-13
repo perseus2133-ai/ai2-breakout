@@ -26,6 +26,7 @@ except Exception:
     pass
 
 from fetch_prices import fetch_many
+from fetch_profiles import update_profiles
 import breakout as bo
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -126,7 +127,10 @@ def main():
     print('3) 일봉 수집...')
     prices = fetch_many(uni['종목코드'].tolist(), pages=args.pages)
 
-    print('4) 신호 계산...')
+    print('4) 기업개요 갱신...')
+    profiles = update_profiles(uni['종목코드'].tolist())
+
+    print('5) 신호 계산...')
     # 수급/컨센 백분위 (유니버스 내)
     fl = (pd.to_numeric(uni.get('외인_5d'), errors='coerce').fillna(0) +
           pd.to_numeric(uni.get('기관_5d'), errors='coerce').fillna(0))
@@ -160,6 +164,7 @@ def main():
             'rsi': round(ind['rsi'], 1), 'ma_align': ind['ma_align'],
             'mcap': float(pd.to_numeric(pd.Series([r['시가총액']]), errors='coerce').iloc[0]),
             'rev_score': None if pd.isna(r['_rev']) else round(float(r['_rev']), 1),
+            'profile': (profiles.get(code) or {}).get('summary', ''),
             **sc,
             'reasons': bo.reasons(ind, r['_rev']),
         })
